@@ -32,7 +32,7 @@
             width: 320px;
             height: 320px;
             margin: 0 auto;
-            filter: drop-shadow(0 0 25px rgba(0,0,0,0.6));
+            filter: drop-shadow(0 0-25px rgba(0,0,0,0.6));
         }
 
         #wheelCanvas {
@@ -41,7 +41,6 @@
             border-radius: 50%;
             border: 10px solid var(--gold);
             transform: rotate(0deg);
-            /* 移除 transition 改由 JS 控制 */
         }
 
         .pointer {
@@ -115,19 +114,19 @@
             backdrop-filter: blur(8px);
         }
 
-        .packet-card {
+        .packet-card, .settings-card {
             background: linear-gradient(145deg, #f44336 0%, #b71c1c 100%);
             border: 3px solid var(--gold);
             border-radius: 20px;
-            padding: 2.5rem;
+            padding: 2rem;
             text-align: center;
             width: 100%;
             max-width: 320px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
-            animation: packetPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        @keyframes packetPop {
+        @keyframes popIn {
             0% { transform: scale(0.6); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
@@ -141,23 +140,65 @@
             z-index: 110;
         }
         
-        /* 音量開關 */
-        .sound-toggle {
+        /* 側邊按鈕樣式 */
+        .side-btn {
             position: fixed;
-            bottom: 20px;
             right: 20px;
             background: rgba(255, 215, 0, 0.2);
             border: 1px solid var(--gold);
-            padding: 8px 12px;
-            border-radius: 99px;
+            padding: 10px 15px;
+            border-radius: 12px;
             cursor: pointer;
             z-index: 50;
+            color: var(--gold);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .side-btn:hover {
+            background: rgba(255, 215, 0, 0.4);
+        }
+
+        .config-btn { top: 20px; }
+        .sound-btn { bottom: 20px; }
+
+        .settings-input {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--gold);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            width: 100%;
+            text-align: center;
+            font-size: 1.2rem;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+            text-align: left;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--gold);
+            margin-bottom: 4px;
+            opacity: 0.8;
         }
     </style>
 </head>
 <body class="p-4">
 
-    <button class="sound-toggle" onclick="toggleMute()" id="muteBtn">🔊 音效已開啟</button>
+    <!-- 側邊控制按鈕 -->
+    <button class="side-btn config-btn" onclick="openSettings()">
+        ⚙️ 金額設定
+    </button>
+    <button class="side-btn sound-btn" onclick="toggleMute()" id="muteBtn">
+        🔊 音效開啟
+    </button>
 
     <div class="lantern left-[8%]">🏮</div>
     <div class="lantern right-[8%]" style="animation-delay: 1.5s;">🏮</div>
@@ -175,27 +216,61 @@
         <button id="spinBtn" class="spin-btn">抽!</button>
     </div>
 
+    <!-- 底部清單視覺區塊 (不顯示機率) -->
     <div class="mt-14 w-full max-w-sm bg-black/30 backdrop-blur-sm p-6 rounded-2xl border border-yellow-600/30 text-center">
-        <h3 class="text-yellow-400 text-xl mb-4 font-bold">🧧 紅包獎勵獎項 🧧</h3>
+        <h3 class="text-yellow-400 text-xl mb-4 font-bold">🧧 目前紅包獎項 🧧</h3>
         <div class="grid grid-cols-2 gap-3 text-white">
-            <div class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1000 元</div>
-            <div class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1200 元</div>
-            <div class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1600 元</div>
-            <div class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1800 元</div>
-            <div class="bg-yellow-600/20 py-2 rounded-lg border border-yellow-500/50 col-span-2 text-yellow-300">
-                ⭐ 2000 元馬年特大紅包 ⭐
+            <div id="list-0" class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1000 元</div>
+            <div id="list-1" class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1200 元</div>
+            <div id="list-2" class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1600 元</div>
+            <div id="list-3" class="bg-red-800/40 py-2 rounded-lg border border-red-700/50">1800 元</div>
+            <div id="list-4" class="bg-yellow-600/20 py-2 rounded-lg border border-yellow-500/50 col-span-2 text-yellow-300">
+                ⭐ <span id="list-4-val">2000</span> 元馬年特大紅包 ⭐
             </div>
         </div>
     </div>
 
-    <div id="modal" class="modal-overlay">
+    <!-- 金額設定彈窗 -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="settings-card">
+            <h2 class="text-2xl text-yellow-300 font-bold mb-6">🧧 修改紅包金額</h2>
+            
+            <div class="input-group">
+                <label class="input-label">獎項一</label>
+                <input type="number" class="settings-input" id="input-0" value="1000" oninput="syncAmount(0, this.value)">
+            </div>
+            <div class="input-group">
+                <label class="input-label">獎項二</label>
+                <input type="number" class="settings-input" id="input-1" value="1200" oninput="syncAmount(1, this.value)">
+            </div>
+            <div class="input-group">
+                <label class="input-label">獎項三</label>
+                <input type="number" class="settings-input" id="input-2" value="1600" oninput="syncAmount(2, this.value)">
+            </div>
+            <div class="input-group">
+                <label class="input-label">獎項四</label>
+                <input type="number" class="settings-input" id="input-3" value="1800" oninput="syncAmount(3, this.value)">
+            </div>
+            <div class="input-group">
+                <label class="input-label">特大紅包獎項</label>
+                <input type="number" class="settings-input border-yellow-400" id="input-4" value="2000" oninput="syncAmount(4, this.value)">
+            </div>
+
+            <button onclick="closeSettings()" class="mt-6 w-full bg-yellow-500 hover:bg-yellow-400 text-red-900 font-bold py-3 rounded-xl transition-all">
+                完成設定
+            </button>
+        </div>
+    </div>
+
+    <!-- 中獎彈窗 -->
+    <div id="resultModal" class="modal-overlay">
         <div class="packet-card">
             <div class="text-4xl mb-2">🐎</div>
             <h2 class="text-2xl text-yellow-300 font-bold mb-2">恭喜中獎</h2>
             <p class="text-red-100 opacity-80">獲得開運紅包金額</p>
             <div id="resultText" class="text-6xl font-black text-white my-6 drop-shadow-lg">$0</div>
             <p class="text-yellow-100 text-lg mb-8">祝您馬到成功，財源滾進！</p>
-            <button onclick="closeModal()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-red-900 font-bold py-4 rounded-full shadow-lg transition-transform active:scale-95">
+            <button onclick="closeResultModal()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-red-900 font-bold py-4 rounded-full shadow-lg transition-transform active:scale-95">
                 收下好運
             </button>
         </div>
@@ -247,6 +322,7 @@
             }
         };
 
+        // 機率依然綁死: 25, 25, 20, 20, 10
         const prizes = [
             { label: "1000", amount: 1000, weight: 25, color: "#e53935" },
             { label: "1200", amount: 1200, weight: 25, color: "#d32f2f" },
@@ -258,7 +334,8 @@
         const canvas = document.getElementById('wheelCanvas');
         const ctx = canvas.getContext('2d');
         const spinBtn = document.getElementById('spinBtn');
-        const modal = document.getElementById('modal');
+        const settingsModal = document.getElementById('settingsModal');
+        const resultModal = document.getElementById('resultModal');
         const resultText = document.getElementById('resultText');
 
         let currentAngle = 0;
@@ -266,7 +343,26 @@
 
         function toggleMute() {
             AudioFX.isMuted = !AudioFX.isMuted;
-            document.getElementById('muteBtn').innerText = AudioFX.isMuted ? "🔇 音效已關閉" : "🔊 音效已開啟";
+            document.getElementById('muteBtn').innerText = AudioFX.isMuted ? "🔇 音效關閉" : "🔊 音效開啟";
+        }
+
+        // 開啟與關閉設定
+        function openSettings() { if(!isSpinning) settingsModal.style.display = 'flex'; }
+        function closeSettings() { settingsModal.style.display = 'none'; }
+
+        // 同步金額修改
+        function syncAmount(index, value) {
+            const val = value || 0;
+            prizes[index].label = val.toString();
+            prizes[index].amount = parseInt(val);
+            
+            // 同步更新下方列表視覺
+            if (index === 4) {
+                document.getElementById('list-4-val').innerText = val;
+            } else {
+                document.getElementById('list-' + index).innerText = val + " 元";
+            }
+            drawWheel();
         }
 
         function drawWheel() {
@@ -299,9 +395,7 @@
             });
         }
 
-        function easeOutCubic(t) {
-            return 1 - Math.pow(1 - t, 3);
-        }
+        function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
         function startSpin() {
             if (isSpinning) return;
@@ -342,8 +436,6 @@
                 currentAngle = startRotation + targetRotation * easeProgress;
                 canvas.style.transform = `rotate(${currentAngle}deg)`;
 
-                // 檢測是否經過新的格子分界線，觸發音效
-                // 我們需要檢測相對於指針的位置
                 const relativeAngle = (pointerPos - currentAngle % 360 + 360) % 360;
                 const currentSliceIndex = Math.floor(relativeAngle / degreesPerSlice);
                 
@@ -358,21 +450,19 @@
                     isSpinning = false;
                     spinBtn.disabled = false;
                     AudioFX.playWin();
-                    showModal(prizes[winningIndex].amount);
+                    showResult(prizes[winningIndex].amount);
                 }
             }
             requestAnimationFrame(animate);
         }
 
-        function showModal(amount) {
+        function showResult(amount) {
             resultText.innerText = `$${amount}`;
-            modal.style.display = 'flex';
+            resultModal.style.display = 'flex';
             launchFireworks();
         }
 
-        function closeModal() {
-            modal.style.display = 'none';
-        }
+        function closeResultModal() { resultModal.style.display = 'none'; }
 
         function launchFireworks() {
             for (let i = 0; i < 30; i++) {
